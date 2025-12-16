@@ -1,71 +1,76 @@
 import orderModel from "../models/orderModel.js";
 import userModel from "../models/userModel.js";
-import Stripe from "stripe";
+import Razorpay from "razorpay";
+import crypto from "crypto";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+// Razorpay instance
+const razorpay = new Razorpay({
+  key_id: process.env.RAZORPAY_KEY_ID,
+  key_secret: process.env.RAZORPAY_KEY_SECRET,
+});
 
 // placing user order for frontend
 const placeOrder = async (req, res) => {
-  const frontend_url = "https://food-delivery-frontend-s2l9.onrender.com";
   try {
     const newOrder = new orderModel({
       userId: req.body.userId,
       items: req.body.items,
       amount: req.body.amount,
       address: req.body.address,
+      payment: false,
     });
+
     await newOrder.save();
     await userModel.findByIdAndUpdate(req.body.userId, { cartData: {} });
 
-    const line_items = req.body.items.map((item) => ({
-      price_data: {
-        currency: "usd",
-        product_data: {
-          name: item.name,
-        },
-        unit_amount: item.price * 100,
-      },
-      quantity: item.quantity,
-    }));
+    // Razorpay order
+    const options = {
+      amount: (req.body.amount + 2) * 100, // ₹ + delivery charge → paise
+      currency: "INR",
+      receipt: `order_${newOrder._id}`,
+    };
 
-    line_items.push({
-      price_data: {
-        currency: "usd",
-        product_data: {
-          name: "Delivery Charges",
-        },
-        unit_amount: 2 * 100,
-      },
-      quantity: 1,
+    const razorpayOrder = await razorpay.orders.create(options);
+
+    res.json({
+      success: true,
+      razorpayOrder,
+      orderId: newOrder._id,
+      key: process.env.RAZORPAY_KEY_ID,
     });
-
-    const session = await stripe.checkout.sessions.create({
-      line_items: line_items,
-      mode: "payment",
-      success_url: `${frontend_url}/verify?success=true&orderId=${newOrder._id}`,
-      cancel_url: `${frontend_url}/verify?success=false&orderId=${newOrder._id}`,
-    });
-
-    res.json({ success: true, session_url: session.url });
   } catch (error) {
     console.log(error);
-    res.json({ success: false, message: "Error" });
+    res.json({ success: false, message: "Error placing order" });
   }
 };
 
+// verify payment
 const verifyOrder = async (req, res) => {
-  const { orderId, success } = req.body;
+  const {
+    razorpay_order_id,
+    razorpay_payment_id,
+    razorpay_signature,
+    orderId,
+  } = req.body;
+
   try {
-    if (success == "true") {
+    const body = razorpay_order_id + "|" + razorpay_payment_id;
+
+    const expectedSignature = crypto
+      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+      .update(body)
+      .digest("hex");
+
+    if (expectedSignature === razorpay_signature) {
       await orderModel.findByIdAndUpdate(orderId, { payment: true });
-      res.json({ success: true, message: "Paid" });
+      res.json({ success: true, message: "Payment verified" });
     } else {
       await orderModel.findByIdAndDelete(orderId);
-      res.json({ success: false, message: "Not Paid" });
+      res.json({ success: false, message: "Payment verification failed" });
     }
   } catch (error) {
     console.log(error);
-    res.json({ success: false, message: "Error" });
+    res.json({ success: false, message: "Error verifying payment" });
   }
 };
 
@@ -80,7 +85,7 @@ const userOrders = async (req, res) => {
   }
 };
 
-// Listing orders for admin pannel
+// Listing orders for admin panel
 const listOrders = async (req, res) => {
   try {
     let userData = await userModel.findById(req.body.userId);
@@ -105,7 +110,7 @@ const updateStatus = async (req, res) => {
         status: req.body.status,
       });
       res.json({ success: true, message: "Status Updated Successfully" });
-    }else{
+    } else {
       res.json({ success: false, message: "You are not an admin" });
     }
   } catch (error) {
@@ -114,4 +119,10 @@ const updateStatus = async (req, res) => {
   }
 };
 
-export { placeOrder, verifyOrder, userOrders, listOrders, updateStatus };
+export {
+  placeOrder,
+  verifyOrder,
+  userOrders,
+  listOrders,
+  updateStatus,
+};

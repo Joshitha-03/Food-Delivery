@@ -1,0 +1,49 @@
+ .heading{
+    margin-bottom: 45px;
+ }
+ .user-reviews {
+    max-width: 1000px;
+    margin: 15px auto;
+    padding: 20px;
+    font-family: "Segoe UI", sans-serif;
+  }
+  
+  .review-card {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+  }
+  
+  .user-info {
+    display: flex;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  
+  .avatar {
+    width: 55px;
+    height: 55px;
+    border-radius: 50%;
+    object-fit: cover;
+    margin-right: 15px;
+  }
+  
+  .placement {
+    font-size: 0.9em;
+    color: #888;
+  }
+  
+  .review-text {
+    font-size: 1rem;
+    line-height: 1.6;
+    color: #333;
+  }
+  .rating {
+    font-size: 1.1em;
+    color: #f5c518; /* gold color for stars */
+
+  }
+  

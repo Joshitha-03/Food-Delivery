@@ -3,13 +3,14 @@ import "./PlaceOrder.css";
 import { StoreContext } from "../../context/StoreContext";
 import axios from "axios";
 import { toast } from "react-toastify";
-import { useNavigate } from 'react-router-dom'
+import { useNavigate } from "react-router-dom";
 
 const PlaceOrder = () => {
-  const navigate= useNavigate();
+  const navigate = useNavigate();
 
-  const { getTotalCartAmount, token, food_list, cartItems, url } =
+  const { getTotalCartAmount, token, food_list, cartItems, url, razorpayKey, clearCart } =
     useContext(StoreContext);
+
   const [data, setData] = useState({
     firstName: "",
     lastName: "",
@@ -23,46 +24,95 @@ const PlaceOrder = () => {
   });
 
   const onChangeHandler = (event) => {
-    const name = event.target.name;
-    const value = event.target.value;
-    setData((data) => ({ ...data, [name]: value }));
+    const { name, value } = event.target;
+    setData((prev) => ({ ...prev, [name]: value }));
   };
 
   const placeOrder = async (event) => {
     event.preventDefault();
+
     let orderItems = [];
-    food_list.map((item) => {
+    food_list.forEach((item) => {
       if (cartItems[item._id] > 0) {
-        let itemInfo = item;
-        itemInfo["quantity"] = cartItems[item._id];
+        let itemInfo = { ...item, quantity: cartItems[item._id] };
         orderItems.push(itemInfo);
       }
     });
-    let orderData = {
+
+    const orderData = {
       address: data,
       items: orderItems,
       amount: getTotalCartAmount() + 2,
     };
-    
-    let response= await axios.post(url+"/api/order/place",orderData,{headers:{token}});
-    if(response.data.success){
-      const {session_url}=response.data;
-      window.location.replace(session_url);
-    }else{
-      toast.error("Errors!")
+
+    try {
+      // 1️⃣ Create Razorpay order on backend
+      const response = await axios.post(url + "/api/order/place", orderData, {
+        headers: { token },
+      });
+
+      if (response.data.success) {
+        const { razorpayOrder, orderId , key} = response.data;
+
+        // 2️⃣ Open Razorpay checkout
+        const options = {
+          key: key,
+          amount: razorpayOrder.amount,
+          currency: "INR",
+          name: "Food Delivery App",
+          description: "Order Payment",
+          order_id: razorpayOrder.id,
+          handler: async function (res) {
+            try {
+              // 3️⃣ Verify payment on backend
+              await axios.post(
+                url + "/api/order/verify",
+                {
+                  razorpay_order_id: res.razorpay_order_id,
+                  razorpay_payment_id: res.razorpay_payment_id,
+                  razorpay_signature: res.razorpay_signature,
+                  orderId: orderId,
+                },
+                { headers: { token } }
+              );
+
+              toast.success("Payment Successful!");
+              clearCart(); // clear cart after payment
+              navigate("/orders");
+            } catch (err) {
+              console.log(err);
+              toast.error("Payment verification failed!");
+            }
+          },
+          prefill: {
+            name: `${data.firstName} ${data.lastName}`,
+            email: data.email,
+            contact: data.phone,
+          },
+          theme: { color: "#3399cc" },
+        };
+
+        const rzp = new window.Razorpay(options);
+        rzp.open();
+      } else {
+        toast.error("Error placing order!");
+      }
+    } catch (error) {
+      console.log(error);
+      toast.error("Something went wrong!");
     }
   };
 
-  useEffect(()=>{
-    if(!token){
-      toast.error("Please Login first")
-      navigate("/cart")
-    }
-    else if(getTotalCartAmount()===0){
+  useEffect(() => {
+    if (!token) {
+      toast.error("Please Login first");
+      navigate("/cart");
+    } else if (getTotalCartAmount() === 0) {
       toast.error("Please Add Items to Cart");
-      navigate("/cart")
+      navigate("/cart");
     }
-  },[token])
+  }, [token]);
+
   return (
     <form className="place-order" onSubmit={placeOrder}>
       <div className="place-order-left">
@@ -152,19 +202,17 @@ const PlaceOrder = () => {
           <div>
             <div className="cart-total-details">
               <p>Subtotals</p>
-              <p>${getTotalCartAmount()}</p>
+              <p>₹{getTotalCartAmount()}</p>
             </div>
             <hr />
             <div className="cart-total-details">
               <p>Delivery Fee</p>
-              <p>${getTotalCartAmount() === 0 ? 0 : 2}</p>
+              <p>₹{getTotalCartAmount() === 0 ? 0 : 2}</p>
             </div>
             <hr />
             <div className="cart-total-details">
               <b>Total</b>
-              <b>
-                ${getTotalCartAmount() === 0 ? 0 : getTotalCartAmount() + 2}
-              </b>
+              <b>₹{getTotalCartAmount() === 0 ? 0 : getTotalCartAmount() + 2}</b>
             </div>
           </div>
           <button type="submit">PROCEED TO PAYMENT</button>

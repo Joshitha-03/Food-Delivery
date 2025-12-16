@@ -11,6 +11,11 @@ import menu_6 from './menu_6.png'
 import menu_7 from './menu_7.png'
 import menu_8 from './menu_8.png'
 
+import user1 from "./user1.jpg";
+import user2 from "./user2.jpg";
+import user3 from "./user3.jpg";
+import foodify from "./foodify.png"
+
 import food_1 from './food_1.png'
 import food_2 from './food_2.png'
 import food_3 from './food_3.png'
@@ -79,7 +84,11 @@ export const assets = {
     profile_icon,
     logout_icon,
     bag_icon,
-    parcel_icon
+    parcel_icon,
+    user1,
+    user2,
+    user3,
+    foodify
 }
 
 export const menu_list = [
