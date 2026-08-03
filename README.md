@@ -4,11 +4,6 @@ A full-stack **Food Delivery Web Application** that allows users to browse food 
 
 ---
 
-## 🌐 Live Demo
-🔗 https://food-delivery-three-pi.vercel.app/
-
----
-
 ## 🚀 Features
 
 ### 👤 User Module
